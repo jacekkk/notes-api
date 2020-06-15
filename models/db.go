@@ -14,18 +14,19 @@ var client *mongo.Client
 func InitDB(connectionString string) {
 	var err error
 
+	log.Print("Connecting to db...")
 	client, err = mongo.NewClient(options.Client().ApplyURI(connectionString))
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	err = client.Connect(ctx)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// defer client.Disconnect(ctx)
+	defer cancel()
 }

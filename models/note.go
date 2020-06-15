@@ -15,21 +15,38 @@ type Note struct {
 	Title  string             `json:"title,omitempty" bson:"title,omitempty"`
 }
 
-func GetNotesByUser(uid int) ([]Note, error) {
+func GetNotesByUser(uid int) ([]*Note, error) {
+	var userNotes []*Note
 	notesCollection := client.Database("notes").Collection("notes")
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 
+	// TODO add error handling for when the uid doesn't exist (no matches found)
 	cursor, err := notesCollection.Find(ctx, bson.M{"uid": uid})
-
 	if err != nil {
 		return nil, err
 	}
 
-	var userNotes []Note
+	defer cursor.Close(ctx)
 
-	if err = cursor.All(ctx, &userNotes); err != nil {
+	err = cursor.All(ctx, &userNotes)
+	if err != nil {
 		return nil, err
 	}
 
 	return userNotes, nil
+}
+
+func GetNote(id primitive.ObjectID) (*Note, error) {
+	var note *Note
+	notesCollection := client.Database("notes").Collection("notes")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	defer cancel()
+
+	err := notesCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&note)
+	if err != nil {
+		return nil, err
+	}
+
+	return note, nil
 }
