@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -17,39 +18,46 @@ type NotesResponse struct {
 	Notes []*models.Note `json:"notes" binding:"required"`
 }
 
-func Router() *mux.Router {
+func Router() http.Handler {
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodOptions},
+		AllowedHeaders: []string{"Authorization"},
+		Debug:          true,
+	})
+
 	router := mux.NewRouter()
 
 	router.HandleFunc("/", homeHandler).Methods("GET", "OPTIONS")
 	router.HandleFunc("/users/{id}/notes", getUserNotes).Methods("GET", "OPTIONS")
 	router.HandleFunc("/notes/{id}", getNote).Methods("GET", "OPTIONS")
 
-	return router
+	handler := c.Handler(router)
+
+	return handler
 }
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Server", "Notes API")
-	w.WriteHeader(200)
-	w.Write([]byte("OK"))
+func homeHandler(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(200)
+	res.Write([]byte("OK"))
 }
 
-func getUserNotes(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Context-Type", "application/x-www-form-urlencoded")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+func getUserNotes(res http.ResponseWriter, req *http.Request) {
+	res.Header().Set("Content-Type", "application/json")
 
-	id, _ := mux.Vars(r)["id"]
+	id, _ := mux.Vars(req)["id"]
 
 	parsedID, parsingErr := strconv.Atoi(id)
 	if parsingErr != nil {
 		log.Print(parsingErr)
-		http.Error(w, http.StatusText(500), 500)
+		http.Error(res, http.StatusText(500), 500)
 		return
 	}
 
 	notes, err := models.GetNotesByUser(parsedID)
 	if err != nil {
 		log.Print(err)
-		http.Error(w, http.StatusText(500), 500)
+		http.Error(res, http.StatusText(500), 500)
 		return
 	}
 
@@ -58,19 +66,18 @@ func getUserNotes(w http.ResponseWriter, r *http.Request) {
 		Notes: notes,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(res).Encode(response)
 }
 
-func getNote(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Context-Type", "application/x-www-form-urlencoded")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+func getNote(res http.ResponseWriter, req *http.Request) {
+	res.Header().Set("Content-Type", "application/json")
 
-	id, _ := mux.Vars(r)["id"]
+	id, _ := mux.Vars(req)["id"]
 
 	parsedID, parsingErr := convertToObjectID(id)
 	if parsingErr != nil {
 		log.Print(parsingErr)
-		http.Error(w, http.StatusText(500), 500)
+		http.Error(res, http.StatusText(500), 500)
 		return
 	}
 
@@ -79,15 +86,15 @@ func getNote(w http.ResponseWriter, r *http.Request) {
 		log.Print(err)
 
 		if err == mongo.ErrNoDocuments {
-			http.NotFound(w, r)
+			http.NotFound(res, req)
 		} else {
-			http.Error(w, http.StatusText(500), 500)
+			http.Error(res, http.StatusText(500), 500)
 		}
 
 		return
 	}
 
-	json.NewEncoder(w).Encode(note)
+	json.NewEncoder(res).Encode(note)
 }
 
 func convertToObjectID(id string) (primitive.ObjectID, error) {
