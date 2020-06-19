@@ -12,7 +12,9 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	if os.Getenv("ENV") != "prod" {
+		godotenv.Load()
+	}
 
 	var (
 		port             = os.Getenv("PORT")
